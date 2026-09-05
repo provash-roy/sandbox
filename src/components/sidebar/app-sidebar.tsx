@@ -1,11 +1,5 @@
-import {
-  CreditCard,
-  Edit,
-  History,
-  Settings,
-  Sparkles,
-} from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Coins, Edit, MessageSquare, Sparkles } from "lucide-react";
 
 import {
   Sidebar,
@@ -20,6 +14,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Button } from "../ui/button";
 
 const chatHistory = [
   "Landing page redesign generator",
@@ -30,32 +25,26 @@ const chatHistory = [
 export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
-      {/* Header */}
       <SidebarHeader className="gap-3 p-3">
-        <div className="flex items-center gap-2 px-2 py-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          {/* Logo */}
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <div className="flex items-center justify-center px-2 py-1">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground group-data-[collapsible=icon]:hidden">
             <Sparkles className="size-4" />
           </div>
 
-          {/* App name */}
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">
+          <span className="ml-2 font-semibold group-data-[collapsible=icon]:hidden">
             Sandbox
           </span>
 
-          {/* Sidebar toggle */}
-          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
+          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:mx-auto" />
         </div>
 
-        {/* New Chat */}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="New Chat"
               className="h-9 bg-purple-800 text-white hover:bg-purple-700 hover:text-white"
             >
-              <Edit className="size-4" />
-
+              <Edit className="size-4 shrink-0" />
               <span className="group-data-[collapsible=icon]:hidden">
                 New Chat
               </span>
@@ -64,21 +53,18 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* Chat History */}
       <SidebarContent>
-        <SidebarGroup>
+        <div className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-muted-foreground group-data-[collapsible=icon]:justify-center">
+          <MessageSquare className="size-4 shrink-0" />
+          <span className="group-data-[collapsible=icon]:hidden">Chats</span>
+        </div>
+
+        <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <SidebarMenu>
               {chatHistory.map((chat, index) => (
                 <SidebarMenuItem key={chat}>
-                  <SidebarMenuButton
-                    isActive={index === 0}
-                    tooltip={chat}
-                  >
-                    {/* Chat icon */}
-                    <History className="size-4 shrink-0" />
-
-                    {/* Chat title */}
+                  <SidebarMenuButton isActive={index === 0}>
                     <span className="truncate group-data-[collapsible=icon]:hidden">
                       {chat}
                     </span>
@@ -90,46 +76,76 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer */}
       <SidebarFooter className="gap-0 p-3">
         <SidebarSeparator className="mb-3" />
 
         <SidebarMenu>
-          {/* Credits */}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Credits"
               size="lg"
               className="group-data-[collapsible=icon]:justify-center"
             >
-              <CreditCard className="size-4 shrink-0" />
+              <Coins className="size-4 shrink-0" />
 
-              <span className="flex flex-1 flex-col items-start gap-0.5 group-data-[collapsible=icon]:hidden">
-                <span>Credits remaining</span>
-
-                <span className="text-xs text-sidebar-foreground/60">
-                  128 credits
-                </span>
+              <span className="flex-1 group-data-[collapsible=icon]:hidden">
+                Credits
               </span>
 
-              <Settings className="size-4 group-data-[collapsible=icon]:hidden" />
+              <span className="group-data-[collapsible=icon]:hidden">10 $</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-
           <SidebarMenuItem className="mt-2 flex items-center justify-center">
-            <UserButton
-              appearance={{
-                elements: {
-                  userButtonBox:
-                    "group-data-[collapsible=icon]:size-8",
-                },
-              }}
-            />
+            <Show when="signed-out">
+              <div className="flex w-full gap-2 group-data-[collapsible=icon]:justify-center">
+                <SignInButton>
+                  <Button
+                    className="
+                      flex-1
+                      bg-purple-900
+                      text-white
+                      hover:bg-purple-600
+                      group-data-[collapsible=icon]:size-8
+                      group-data-[collapsible=icon]:flex-none
+                      group-data-[collapsible=icon]:p-0
+                    "
+                  >
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      Sign In
+                    </span>
+                    <span className="hidden group-data-[collapsible=icon]:block">
+                      <UserButton />
+                    </span>
+                  </Button>
+                </SignInButton>
+
+                <SignUpButton>
+                  <Button className="flex-1 bg-purple-900 text-white hover:bg-purple-600 group-data-[collapsible=icon]:hidden">
+                    Sign Up
+                  </Button>
+                </SignUpButton>
+              </div>
+            </Show>
+
+            <Show when="signed-in">
+              <div className="flex w-full items-center justify-start">
+                <UserButton
+                  appearance={{
+                    elements: {
+                      userButtonBox:
+                        "justify-end group-data-[collapsible=icon]:justify-center",
+                      userButtonOuterIdentifier:
+                        "group-data-[collapsible=icon]:hidden",
+                    },
+                  }}
+                  showName
+                />
+              </div>
+            </Show>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
 }
-
