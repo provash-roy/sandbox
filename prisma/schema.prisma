@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+
+model Game {
+  id              String   @id @default(cuid())
+  orgId           String
+  title           String
+  messages        Json     @default("[]")
+  chatAccessToken String?
+  chatLastEventId String?
+  sandboxId       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+   @@index([orgId, createdAt(sort: Desc)])
+}
+
+model CreditLedger {
+  id        String    @id @default(cuid())
+  orgId     String
+  entryKey  String
+  amount    BigInt
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, entryKey])
+}
