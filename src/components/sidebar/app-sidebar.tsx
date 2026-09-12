@@ -1,5 +1,6 @@
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { Coins, Edit, MessageSquare, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 import {
   Sidebar,
@@ -15,14 +16,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "../ui/button";
+import { listGames } from "@/lib/games/actions";
 
-const chatHistory = [
-  "Landing page redesign generator",
-  "E-commerce checkout flow",
-  "Dashboard analytics widgets",
-];
-
-export function AppSidebar() {
+export async function AppSidebar() {
+  const games = await listGames();
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
       <SidebarHeader className="gap-3 p-3">
@@ -42,10 +39,10 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="New Chat"
-              className="h-9 bg-purple-800 text-white hover:bg-purple-700 hover:text-white"
+              className="h-9 text-center bg-purple-800 text-white hover:bg-purple-700 hover:text-white"
             >
               <Edit className="size-4 shrink-0" />
-              <span className="group-data-[collapsible=icon]:hidden">
+              <span className="  group-data-[collapsible=icon]:hidden">
                 New Chat
               </span>
             </SidebarMenuButton>
@@ -62,13 +59,15 @@ export function AppSidebar() {
         <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <SidebarMenu>
-              {chatHistory.map((chat, index) => (
-                <SidebarMenuItem key={chat}>
-                  <SidebarMenuButton isActive={index === 0}>
-                    <span className="truncate group-data-[collapsible=icon]:hidden">
-                      {chat}
-                    </span>
-                  </SidebarMenuButton>
+              {games.map((game, index) => (
+                <SidebarMenuItem key={game.id}>
+                  <Link href={`/games/${game.id}`} className="w-full">
+                    <SidebarMenuButton isActive={index === 0}>
+                      <span className="truncate group-data-[collapsible=icon]:hidden">
+                        {game.title}
+                      </span>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

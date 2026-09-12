@@ -2,8 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
-
-export async function createGame(prompt: string, modelId: string) {
+// modelId: string;
+export async function createGame(prompt: string) {
   const { orgId } = await auth();
 
   if (!orgId) {
@@ -18,7 +18,7 @@ export async function createGame(prompt: string, modelId: string) {
         {
           role: "user",
           content: prompt,
-          modelId,
+          //   modelId,
         },
       ],
     },
@@ -36,7 +36,7 @@ export async function listGames() {
 
   return prisma.game.findMany({
     where: {
-      orgId
+      orgId,
     },
     orderBy: {
       createdAt: "desc",
