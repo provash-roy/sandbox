@@ -35,10 +35,14 @@ export function NewGameComposer() {
   const [prompt, setPrompt] = useState("");
 
   const handleSubmit = async () => {
-    await createGame(prompt);
-   alert("Game created successfully!");
-    setPrompt("");
-    router.refresh();
+    const game = await createGame(prompt);
+    if (game) {
+      setPrompt("");
+      router.refresh(); // Refresh the sidebar to show the new game
+      router.push(`/games/${game.id}`);
+    } else {
+      console.error("Failed to create game");
+    }
   };
 
   const handleSuggestion = (text: string) => {

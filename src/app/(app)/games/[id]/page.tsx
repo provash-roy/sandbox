@@ -14,56 +14,60 @@ import {
 import { getGame } from "@/lib/games/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// Fake message data
-const FAKE_MESSAGES = [
-  {
-    role: "user",
-    content: "Can you help me create a simple todo app?",
-    timestamp: new Date(Date.now() - 5 * 60000),
-  },
-  {
-    role: "assistant",
-    content:
-      "I'd be happy to help! A todo app is a great beginner project. We can build one with React and TypeScript. Would you like me to create a basic structure with features like adding, deleting, and marking todos as complete?",
-    timestamp: new Date(Date.now() - 4 * 60000),
-  },
-  {
-    role: "user",
-    content: "Yes, that sounds good. Can we also add local storage?",
-    timestamp: new Date(Date.now() - 3 * 60000),
-  },
-  {
-    role: "assistant",
-    content:
-      "Absolutely! We can use localStorage to persist the todos. Here's a plan:\n1. Create a Todo type\n2. Build the main Todo component\n3. Add localStorage hooks\n4. Style it with Tailwind CSS\n\nLet's start with the basic structure.",
-    timestamp: new Date(Date.now() - 2 * 60000),
-  },
-  {
-    role: "user",
-    content: "Great! Let's begin.",
-    timestamp: new Date(Date.now() - 60000),
-  },
-  {
-    role: "assistant",
-    content:
-      "Perfect! Here's the starter code for your Todo App. You can build upon this foundation and add more features as needed.",
-    timestamp: new Date(Date.now()),
-  },
-];
+interface GameData {
+  id: string;
+  title: string;
+  messages: unknown;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
 
 export default function GamePage() {
   const params = useParams();
   const gameId = params.id as string;
-  const [game, setGame] = useState<Record<string, unknown> | null>(null);
+  const [game, setGame] = useState<GameData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState(FAKE_MESSAGES);
-  const [inputValue, setInputValue] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
 
   useEffect(() => {
     const loadGame = async () => {
       try {
         const data = await getGame(gameId);
-        setGame(data);
+        if (data) {
+          setGame({
+            id: data.id as string,
+            title: data.title as string,
+            messages: data.messages,
+          });
+
+          // Load existing messages from database
+          if (Array.isArray(data.messages)) {
+            const validMessages = data.messages.filter((msg) => {
+              return !!(
+                msg &&
+                typeof msg === "object" &&
+                "role" in msg &&
+                "content" in msg
+              );
+            });
+
+            setMessages(
+              validMessages.map((msg) => ({
+                role: (msg as Record<string, unknown>).role as
+                  | "user"
+                  | "assistant",
+                content: String((msg as Record<string, unknown>).content),
+                timestamp: new Date(),
+              })),
+            );
+          }
+        }
       } catch (error) {
         console.error("Failed to load game:", error);
       } finally {
@@ -76,33 +80,83 @@ export default function GamePage() {
     }
   }, [gameId]);
 
-  const handleSubmit = (value: string) => {
-    if (!value.trim()) return;
+  const handleSubmit = async (value: string) => {
+    if (!value.trim() || isStreaming) return;
 
-    // Add user message
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: value,
-        timestamp: new Date(),
-      },
-    ]);
+    // Add user message immediately
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: value,
+      timestamp: new Date(),
+    };
 
-    setInputValue("");
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsStreaming(true);
 
-    // Simulate assistant response
-    setTimeout(() => {
+    // Add placeholder for assistant message
+    const assistantMessageIndex = messages.length + 1;
+
+    try {
+      const response = await fetch(`/api/games/${gameId}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages,
+            userMessage,
+          ].map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to send message");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      let assistantContent = "";
+      const decoder = new TextDecoder();
+
+      // Create placeholder message
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content:
-            "This is a simulated response. In a real application, this would be connected to an AI backend.",
+          content: "",
           timestamp: new Date(),
         },
       ]);
-    }, 1000);
+
+      // Stream chunks and update message in real-time
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        assistantContent += chunk;
+
+        // Update the last message (assistant's message) with streamed content
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated[updated.length - 1]?.role === "assistant") {
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: assistantContent,
+            };
+          }
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setIsStreaming(false);
+    }
   };
 
   if (loading) {
@@ -124,7 +178,7 @@ export default function GamePage() {
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-border/40 px-6 py-4 flex items-center justify-between bg-white dark:bg-slate-950">
+      <div className="border-b border-border/40 px-6 py-4 flex items-center justify-between bg-white dark:bg-slate-950 shrink-0">
         <div className="flex flex-col">
           <h1 className="text-lg font-semibold text-foreground">
             {String(game.title) || "Untitled Game"}
@@ -139,69 +193,95 @@ export default function GamePage() {
           <MessageScroller>
             <MessageScrollerViewport>
               <MessageScrollerContent className="px-6 py-8 gap-4">
-                {messages.map((message, index) => (
-                  <MessageScrollerItem
-                    key={index}
-                    scrollAnchor={index === messages.length - 1}
-                  >
-                    <div
-                      className={`flex ${
-                        message.role === "user"
-                          ? "justify-end"
-                          : "justify-start"
-                      } mb-2`}
+                {messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <p>Start a conversation about your game!</p>
+                  </div>
+                ) : (
+                  messages.map((message: ChatMessage, index: number) => (
+                    <MessageScrollerItem
+                      key={index}
+                      scrollAnchor={index === messages.length - 1}
                     >
                       <div
-                        className={`flex gap-3 max-w-2xl ${
+                        className={`flex ${
                           message.role === "user"
-                            ? "flex-row-reverse"
-                            : "flex-row"
-                        }`}
+                            ? "justify-end"
+                            : "justify-start"
+                        } mb-2`}
                       >
-                        <Avatar className="w-8 h-8 shrink-0">
-                          {message.role === "user" ? (
-                            <>
-                              <AvatarImage src="/api/avatar?role=user" />
-                              <AvatarFallback className="text-xs font-semibold">
-                                You
-                              </AvatarFallback>
-                            </>
-                          ) : (
-                            <>
-                              <AvatarImage src="/api/avatar?role=assistant" />
-                              <AvatarFallback className="bg-linear-to-br from-cyan-500 to-blue-500 text-white text-xs font-semibold">
-                                AI
-                              </AvatarFallback>
-                            </>
-                          )}
-                        </Avatar>
                         <div
-                          className={`flex flex-col gap-2 ${
+                          className={`flex gap-3 max-w-2xl ${
                             message.role === "user"
-                              ? "items-end"
-                              : "items-start"
+                              ? "flex-row-reverse"
+                              : "flex-row"
                           }`}
                         >
+                          <Avatar className="w-8 h-8 shrink-0">
+                            {message.role === "user" ? (
+                              <>
+                                <AvatarImage src="/api/avatar?role=user" />
+                                <AvatarFallback className="text-xs font-semibold">
+                                  You
+                                </AvatarFallback>
+                              </>
+                            ) : (
+                              <>
+                                <AvatarImage src="/api/avatar?role=assistant" />
+                                <AvatarFallback className="bg-linear-to-br from-cyan-500 to-blue-500 text-white text-xs font-semibold">
+                                  AI
+                                </AvatarFallback>
+                              </>
+                            )}
+                          </Avatar>
                           <div
-                            className={`rounded-lg px-4 py-3 text-sm leading-relaxed max-w-xl wrap-break-word ${
+                            className={`flex flex-col gap-2 ${
                               message.role === "user"
-                                ? "bg-blue-600 text-white rounded-br-none"
-                                : "bg-gray-100 dark:bg-gray-800 text-foreground rounded-bl-none"
+                                ? "items-end"
+                                : "items-start"
                             }`}
                           >
-                            {message.content}
+                            <div
+                              className={`rounded-lg px-4 py-3 text-sm leading-relaxed max-w-xl wrap-break-word ${
+                                message.role === "user"
+                                  ? "bg-blue-600 text-white rounded-br-none"
+                                  : "bg-gray-100 dark:bg-gray-800 text-foreground rounded-bl-none"
+                              }`}
+                            >
+                              {message.content}
+                            </div>
+                            <p className="text-xs text-muted-foreground px-2">
+                              {message.timestamp.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground px-2">
-                            {message.timestamp.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
+                        </div>
+                      </div>
+                    </MessageScrollerItem>
+                  ))
+                )}
+                {isStreaming && (
+                  <div className="flex justify-start mb-2">
+                    <div className="flex gap-3 max-w-2xl">
+                      <Avatar className="w-8 h-8 shrink-0">
+                        <AvatarFallback className="bg-linear-to-br from-cyan-500 to-blue-500 text-white text-xs font-semibold">
+                          AI
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col gap-2 items-start">
+                        <div className="rounded-lg px-4 py-3 text-sm bg-gray-100 dark:bg-gray-800 text-foreground rounded-bl-none">
+                          <div className="flex gap-2">
+                            <div className="w-2 h-2 bg-current rounded-full animate-bounce" />
+                            <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-100" />
+                            <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-200" />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </MessageScrollerItem>
-                ))}
+                  </div>
+                )}
               </MessageScrollerContent>
             </MessageScrollerViewport>
             <MessageScrollerButton />
@@ -210,14 +290,18 @@ export default function GamePage() {
       </div>
 
       {/* Chat Input */}
-      <div className="border-t border-border/40 px-6 py-6 bg-white dark:bg-slate-950">
-        <div className="flex flex-col gap-3 max-w-4xl mx-auto">
-          <ChatComposer
-            value={inputValue}
-            onValueChange={setInputValue}
-            onSubmit={handleSubmit}
-            placeholder="Message..."
-          />
+      <div className="border-t border-border/40 bg-white dark:bg-slate-950 shrink-0 py-4">
+        <div className="flex flex-col gap-2 max-w-4xl mx-auto px-6">
+          <div className="w-full **:data-[slot=input-group]:h-auto **:data-[slot=input-group]:min-h-12">
+            <ChatComposer
+              value={input}
+              onValueChange={setInput}
+              onSubmit={handleSubmit}
+              placeholder="Message..."
+              disabled={isStreaming}
+              streaming={isStreaming}
+            />
+          </div>
           <p className="text-xs text-muted-foreground text-center">
             Press Shift + Enter for new line
           </p>
