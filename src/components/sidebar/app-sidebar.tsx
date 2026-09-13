@@ -37,15 +37,17 @@ export async function AppSidebar() {
 
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="New Chat"
-              className="h-9 text-center bg-purple-800 text-white hover:bg-purple-700 hover:text-white"
-            >
-              <Edit className="size-4 shrink-0" />
-              <span className="  group-data-[collapsible=icon]:hidden">
-                New Chat
-              </span>
-            </SidebarMenuButton>
+            <Link href="/">
+              <SidebarMenuButton
+                tooltip="New Chat"
+                className="h-9 text-center bg-purple-800 text-white hover:bg-purple-700 hover:text-white"
+              >
+                <Edit className="size-4 shrink-0" />
+                <span className="group-data-[collapsible=icon]:hidden">
+                  New Chat
+                </span>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
