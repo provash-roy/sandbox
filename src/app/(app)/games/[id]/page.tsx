@@ -1,5 +1,7 @@
 "use client";
 
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChatComposer } from "@/components/chat-composer";
@@ -20,20 +22,18 @@ interface GameData {
   messages: unknown;
 }
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
-
 export default function GamePage() {
   const params = useParams();
   const gameId = params.id as string;
   const [game, setGame] = useState<GameData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
+  const { messages, sendMessage, setMessages, status, stop } = useChat({
+    transport: new DefaultChatTransport({
+      api: `/api/games/${gameId}/chat`,
+    }),
+  });
+  const isStreaming = status === "submitted" || status === "streaming";
 
   useEffect(() => {
     const loadGame = async () => {
@@ -58,13 +58,19 @@ export default function GamePage() {
             });
 
             setMessages(
-              validMessages.map((msg) => ({
-                role: (msg as Record<string, unknown>).role as
-                  | "user"
-                  | "assistant",
-                content: String((msg as Record<string, unknown>).content),
-                timestamp: new Date(),
-              })),
+              validMessages.map((msg, index) => {
+                const message = msg as Record<string, unknown>;
+                return {
+                  id: `${String(message.role)}-${index}`,
+                  role: message.role as "user" | "assistant",
+                  parts: [
+                    {
+                      type: "text" as const,
+                      text: String(message.content),
+                    },
+                  ],
+                };
+              }),
             );
           }
         }
@@ -78,85 +84,13 @@ export default function GamePage() {
     if (gameId) {
       loadGame();
     }
-  }, [gameId]);
+  }, [gameId, setMessages]);
 
-  const handleSubmit = async (value: string) => {
+  const handleSubmit = (value: string) => {
     if (!value.trim() || isStreaming) return;
 
-    // Add user message immediately
-    const userMessage: ChatMessage = {
-      role: "user",
-      content: value,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    sendMessage({ text: value.trim() });
     setInput("");
-    setIsStreaming(true);
-
-    // Add placeholder for assistant message
-    const assistantMessageIndex = messages.length + 1;
-
-    try {
-      const response = await fetch(`/api/games/${gameId}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [
-            ...messages,
-            userMessage,
-          ].map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to send message");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-
-      let assistantContent = "";
-      const decoder = new TextDecoder();
-
-      // Create placeholder message
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "",
-          timestamp: new Date(),
-        },
-      ]);
-
-      // Stream chunks and update message in real-time
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        assistantContent += chunk;
-
-        // Update the last message (assistant's message) with streamed content
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.role === "assistant") {
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: assistantContent,
-            };
-          }
-          return updated;
-        });
-      }
-    } catch (error) {
-      console.error("Error sending message:", error);
-    } finally {
-      setIsStreaming(false);
-    }
   };
 
   if (loading) {
@@ -198,7 +132,7 @@ export default function GamePage() {
                     <p>Start a conversation about your game!</p>
                   </div>
                 ) : (
-                  messages.map((message: ChatMessage, index: number) => (
+                  messages.map((message, index) => (
                     <MessageScrollerItem
                       key={index}
                       scrollAnchor={index === messages.length - 1}
@@ -248,14 +182,16 @@ export default function GamePage() {
                                   : "bg-gray-100 dark:bg-gray-800 text-foreground rounded-bl-none"
                               }`}
                             >
-                              {message.content}
-                            </div>
-                            <p className="text-xs text-muted-foreground px-2">
-                              {message.timestamp.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
+                              {message.parts.map((part, partIndex) => {
+                                if (part.type !== "text") return null;
+
+                                return (
+                                  <div key={`${message.id}-${partIndex}`}>
+                                    {part.text}
+                                  </div>
+                                );
                               })}
-                            </p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -297,6 +233,7 @@ export default function GamePage() {
               value={input}
               onValueChange={setInput}
               onSubmit={handleSubmit}
+              onStop={stop}
               placeholder="Message..."
               disabled={isStreaming}
               streaming={isStreaming}
